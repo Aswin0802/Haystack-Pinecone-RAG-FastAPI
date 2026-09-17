@@ -117,10 +117,9 @@ Haystack_Mistral_Pinecone_FastAPI/
 └── QASystem/
     ├── __init__.py
     ├── retrieval_generation.py
-    └── utils.py
+    ├── utils.py
+    └── ingest.py 
 ```
-
-> The repository name can be changed to something more descriptive such as `haystack-pinecone-rag-fastapi`.
 
 ---
 
@@ -260,33 +259,6 @@ Create a `.env` file in the project root:
 PINECONE_API_KEY=your_pinecone_api_key
 HF_TOKEN=your_huggingface_token
 ```
-
-### ⚠️ Important
-
-Never commit `.env` to GitHub.
-
-The application loads credentials through environment variables:
-
-```python
-Secret.from_env_var("HF_TOKEN")
-```
-
-Your `.gitignore` should contain:
-
-```gitignore
-.env
-.env.*
-myenv/
-.venv/
-venv/
-__pycache__/
-*.py[cod]
-.ipynb_checkpoints/
-.vscode/
-.idea/
-*.log
-```
-
 ---
 
 # ⚙️ Installation
@@ -355,7 +327,7 @@ Dimension  : 768
 Metric     : cosine
 Cloud      : AWS
 Region     : us-east-1
-Namespace  : default
+Namespace  : rag
 ```
 
 The vector dimension must match the embedding model used by the application.
@@ -544,51 +516,6 @@ This design helps reduce unsupported responses by restricting the model to retri
 
 ---
 
-# 🧠 Why RAG?
-
-LLMs have knowledge obtained during training, but they may not know information contained in private or newly provided documents.
-
-RAG addresses this by retrieving relevant information from an external knowledge source and providing it to the LLM as context.
-
-```text
-Traditional LLM
-
-User → LLM → Answer
-
-
-RAG
-
-User
- ↓
-Retriever
- ↓
-Knowledge Base
- ↓
-Relevant Context
- ↓
-LLM
- ↓
-Answer
-```
-
----
-
-# 📊 RAG Components
-
-| Component | Responsibility |
-|---|---|
-| Document Loader | Reads source documents |
-| Document Splitter | Creates manageable chunks |
-| Document Embedder | Converts chunks to vectors |
-| Vector Database | Stores embeddings |
-| Query Embedder | Converts user queries to vectors |
-| Retriever | Finds relevant chunks |
-| Prompt Builder | Combines query and context |
-| LLM | Generates the final answer |
-| FastAPI | Exposes the application as an API |
-
----
-
 # 🚀 Future Improvements
 
 The current implementation can be extended with:
@@ -616,43 +543,6 @@ The current implementation can be extended with:
 - [ ] Production monitoring
 
 ---
-
-# 📈 Production RAG Roadmap
-
-```text
-                    Basic RAG
-                       │
-                       ▼
-                Better Chunking
-                       │
-                       ▼
-               Metadata Filtering
-                       │
-                       ▼
-                  Reranking
-                       │
-                       ▼
-                 Hybrid Search
-                       │
-                       ▼
-              Query Transformation
-                       │
-                       ▼
-                  Evaluation
-                       │
-                       ▼
-                Observability
-                       │
-                       ▼
-                    Docker
-                       │
-                       ▼
-                    CI/CD
-                       │
-                       ▼
-              Cloud Deployment
-```
-
 ---
 
 # 🎯 Learning Objectives
@@ -758,26 +648,7 @@ async def get_answer(query: str = Form(...)):
 
 ---
 
-# 🔒 Security
 
-Never expose API keys in source code.
-
-Do not commit:
-
-```text
-.env
-HF_TOKEN
-PINECONE_API_KEY
-```
-
-If an API key is accidentally committed to GitHub:
-
-1. Revoke the exposed key.
-2. Generate a new key.
-3. Update your local `.env`.
-4. Remove the secret from Git history if necessary.
-
----
 
 # 📌 Important Notes
 
@@ -790,15 +661,6 @@ If an API key is accidentally committed to GitHub:
 - The application should never rely on an API key hardcoded in Python files.
 
 ---
-
-# 👨‍💻 Author
-
-**Aswin Kumar Nayak**
-
-AI / ML Engineer | Generative AI | RAG | LLM Applications
-
----
-
 # ⭐ Project
 
 If you find this project useful, consider giving the repository a ⭐ on GitHub.
