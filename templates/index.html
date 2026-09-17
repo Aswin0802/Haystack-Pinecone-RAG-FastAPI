@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Console — Haystack · Mistral · Pinecone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1420;
+    --panel:#161C28;
+    --panel-2:#1C2330;
+    --line:#2B3346;
+    --line-soft:#232A3A;
+    --text:#E8ECF3;
+    --muted:#8A93A8;
+    --muted-2:#5E6779;
+    --amber:#E8B339;
+    --amber-dim:#7A6528;
+    --blue:#6C9BFA;
+    --green:#4FBF8B;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --radius: 3px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(680px 420px at 14% -8%, rgba(232,179,57,.07), transparent 60%),
+      radial-gradient(600px 500px at 100% 0%, rgba(108,155,250,.06), transparent 55%),
+      var(--ink);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+  }
+  body::before{
+    /* faint technical grid */
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background-image:
+      linear-gradient(rgba(232,236,243,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,236,243,.025) 1px, transparent 1px);
+    background-size:34px 34px;
+    mask-image:radial-gradient(circle at 20% 0%, black, transparent 70%);
+    -webkit-mask-image:radial-gradient(circle at 20% 0%, black, transparent 70%);
+    z-index:0;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+
+  a{color:var(--blue);}
+
+  @keyframes fadeSlideDown{
+    from{opacity:0; transform:translateY(-8px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  @keyframes fadeSlideUp{
+    from{opacity:0; transform:translateY(10px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  @keyframes chipIn{
+    from{opacity:0; transform:translateX(-6px);}
+    to{opacity:1; transform:translateX(0);}
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 3px rgba(232,179,57,.14);}
+    50%{box-shadow:0 0 0 6px rgba(232,179,57,.05);}
+  }
+  @keyframes travel{
+    0%{top:0%; opacity:0;}
+    12%{opacity:1;}
+    88%{opacity:1;}
+    100%{top:100%; opacity:0;}
+  }
+  @keyframes blink{50%{opacity:0;}}
+  @keyframes shimmer{
+    0%{background-position:-200% 0;}
+    100%{background-position:200% 0;}
+  }
+  @keyframes ledGlow{
+    0%,100%{box-shadow:0 0 6px 1px rgba(79,191,139,.45);}
+    50%{box-shadow:0 0 12px 3px rgba(79,191,139,.7);}
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    position:relative;
+    z-index:1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 28px;
+    border-bottom:1px solid var(--line-soft);
+    animation:fadeSlideDown .5s ease both;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand-mark{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:17px;
+    letter-spacing:0.2px;
+  }
+  .brand-mark .dot{
+    color:var(--amber);
+    display:inline-block;
+    animation:blink 2.4s step-end infinite;
+  }
+  .brand-sub{
+    font-family:var(--sans);
+    font-size:13px;
+    color:var(--muted);
+  }
+  .status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--muted);
+  }
+  .status-led{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--muted-2);
+    transition:background .3s ease;
+  }
+  .status-led.live{
+    background:var(--green);
+    animation:ledGlow 1.1s ease-in-out infinite;
+  }
+
+  /* ---------- Layout ---------- */
+  .stage{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:280px 1fr;
+    max-width:1100px;
+    margin:0 auto;
+    min-height:calc(100vh - 61px);
+  }
+  @media (max-width:820px){
+    .stage{grid-template-columns:1fr;}
+  }
+
+  /* ---------- Pipeline rail ---------- */
+  .rail{
+    border-right:1px solid var(--line-soft);
+    padding:36px 26px;
+    animation:fadeSlideUp .55s ease .08s both;
+  }
+  @media (max-width:820px){
+    .rail{border-right:none; border-bottom:1px solid var(--line-soft); padding:24px 26px;}
+  }
+  .rail-title{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--muted-2);
+    margin:0 0 22px 0;
+  }
+  .steps{
+    position:relative;
+  }
+  .step{
+    position:relative;
+    padding:0 0 30px 30px;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .step:last-child{padding-bottom:0;}
+  .step::before{
+    content:"";
+    position:absolute;
+    left:8px;
+    top:20px;
+    bottom:-10px;
+    width:1px;
+    background:var(--line);
+  }
+  .step:last-child::before{display:none;}
+  .step .signal{
+    position:absolute;
+    left:5px;
+    top:20px;
+    width:7px;height:7px;
+    margin-left:-3px;
+    border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 6px 1px rgba(232,179,57,.7);
+    opacity:0;
+  }
+  .step.active .signal{
+    animation:travel 1.05s linear infinite;
+  }
+  .step-node{
+    position:absolute;
+    left:0;
+    top:1px;
+    width:17px;height:17px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:var(--panel);
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color .35s ease, background .35s ease, box-shadow .35s ease, transform .3s ease;
+  }
+  .step-node svg{width:9px;height:9px;opacity:0;transition:opacity .3s ease;}
+  .step-name{
+    font-family:var(--mono);
+    font-size:14px;
+    font-weight:600;
+    color:var(--muted);
+    transition:color .35s ease;
+  }
+  .step-tool{
+    font-size:12.5px;
+    color:var(--muted-2);
+    line-height:1.4;
+  }
+  .step.active .step-node{
+    border-color:var(--amber);
+    box-shadow:0 0 0 3px rgba(232,179,57,.14);
+  }
+  .step.active .step-name{color:var(--amber);}
+  .step.active .step-node.pulse{
+    animation:pulse 1.1s ease-in-out infinite;
+  }
+  .step.done .step-node{
+    border-color:var(--green);
+    background:var(--green);
+    transform:scale(1.06);
+  }
+  .step.done .step-node svg{opacity:1;}
+  .step.done .step-name{color:var(--text);}
+
+  /* ---------- Query panel ---------- */
+  .panel{
+    padding:36px 32px 48px;
+    animation:fadeSlideUp .55s ease .14s both;
+  }
+  @media (max-width:820px){
+    .panel{padding:26px 22px 40px;}
+  }
+  .field-label{
+    display:block;
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:10px;
+  }
+  textarea{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.55;
+    padding:14px 16px;
+    resize:vertical;
+    min-height:96px;
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  textarea::placeholder{color:var(--muted-2);}
+  textarea:focus{
+    outline:none;
+    border-color:var(--amber-dim);
+    box-shadow:0 0 0 3px rgba(232,179,57,.10);
+  }
+  textarea[readonly]{
+    background:var(--panel-2);
+    color:var(--text);
+  }
+
+  .actions{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:14px;
+    margin-bottom:38px;
+  }
+  .hint{
+    font-size:12.5px;
+    color:var(--muted-2);
+  }
+  button.run{
+    position:relative;
+    overflow:hidden;
+    font-family:var(--mono);
+    font-size:13.5px;
+    font-weight:600;
+    color:#141822;
+    background:var(--amber);
+    border:none;
+    border-radius:var(--radius);
+    padding:10px 20px;
+    cursor:pointer;
+    transition:background .18s ease, transform .12s ease, box-shadow .2s ease;
+  }
+  button.run:hover:not(:disabled){
+    background:#f0c25a;
+    transform:translateY(-1px);
+    box-shadow:0 4px 14px rgba(232,179,57,.22);
+  }
+  button.run:active:not(:disabled){transform:translateY(0px);}
+  button.run:focus-visible{
+    outline:2px solid var(--blue);
+    outline-offset:2px;
+  }
+  button.run:disabled{
+    background:var(--line);
+    color:var(--muted-2);
+    cursor:not-allowed;
+    background-image:linear-gradient(100deg, var(--line) 40%, #333d52 50%, var(--line) 60%);
+    background-size:250% 100%;
+    animation:shimmer 1.4s linear infinite;
+  }
+
+  /* ---------- Answer (animated reveal) ---------- */
+  #answer-block{
+    display:grid;
+    grid-template-rows:0fr;
+    opacity:0;
+    transition:grid-template-rows .5s cubic-bezier(.4,0,.2,1), opacity .4s ease .05s;
+  }
+  #answer-block.show{
+    grid-template-rows:1fr;
+    opacity:1;
+  }
+  .answer-inner{overflow:hidden; min-height:0;}
+  .divider{
+    border:none;
+    border-top:1px solid var(--line-soft);
+    margin:0 0 28px 0;
+  }
+  #answer{
+    min-height:120px;
+  }
+  .sources{
+    margin-top:22px;
+  }
+  .sources-label{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--muted-2);
+    margin-bottom:10px;
+  }
+  .source-chip{
+    display:block;
+    background:var(--panel);
+    border:1px solid var(--line-soft);
+    border-left:2px solid var(--blue);
+    border-radius:var(--radius);
+    padding:10px 13px;
+    margin-bottom:8px;
+    font-size:13.5px;
+    color:var(--muted);
+    line-height:1.5;
+    animation:chipIn .35s ease both;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .source-chip:hover{
+    border-color:var(--blue);
+    background:var(--panel-2);
+  }
+  .source-chip .src-idx{
+    font-family:var(--mono);
+    color:var(--blue);
+    margin-right:8px;
+  }
+
+  /* ---------- Inline loading ---------- */
+  .loading-row{
+    display:none;
+    align-items:center;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--muted);
+    margin-top:14px;
+    margin-bottom:38px;
+    animation:fadeSlideUp .3s ease both;
+  }
+  .loading-row.show{display:flex;}
+  .cursor{
+    width:7px;height:14px;
+    background:var(--amber);
+    animation:blink 1s step-end infinite;
+  }
+
+  /* ---------- SweetAlert theming ---------- */
+  .swal-dark-popup{
+    background:var(--panel) !important;
+    color:var(--text) !important;
+    font-family:var(--sans) !important;
+    border:1px solid var(--line) !important;
+  }
+  .swal-dark-title{color:var(--text) !important;}
+  .swal-dark-confirm{
+    background:var(--amber) !important;
+    color:#141822 !important;
+    font-family:var(--mono) !important;
+    font-weight:600 !important;
+    box-shadow:none !important;
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">rag<span class="dot">.</span>console</span>
+      <span class="brand-sub">grounded answers from your documents</span>
+    </div>
+    <div class="status">
+      <span class="status-led" id="status-led"></span>
+      <span id="status-text">idle</span>
+    </div>
+  </div>
+
+  <div class="stage">
+
+    <!-- Pipeline rail -->
+    <div class="rail">
+      <p class="rail-title">pipeline</p>
+      <div class="steps">
+        <div class="step" id="step-retrieve">
+          <span class="signal"></span>
+          <span class="step-node"><svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="#141822" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="step-name">Retrieve</span>
+          <span class="step-tool">Pinecone finds the nearest matches</span>
+        </div>
+        <div class="step" id="step-augment">
+          <span class="signal"></span>
+          <span class="step-node"><svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="#141822" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="step-name">Augment</span>
+          <span class="step-tool">Haystack builds the grounded prompt</span>
+        </div>
+        <div class="step" id="step-generate">
+          <span class="signal"></span>
+          <span class="step-node"><svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="#141822" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="step-name">Generate</span>
+          <span class="step-tool">Mistral writes the answer</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Query / answer panel -->
+    <div class="panel">
+      <label class="field-label" for="question">Ask a question</label>
+      <textarea id="question" placeholder="What does the onboarding doc say about API keys?"></textarea>
+
+      <div class="actions">
+        <span class="hint">Answers are grounded in the documents indexed for this endpoint.</span>
+        <button type="button" class="run" id="submit-btn">Run query</button>
+      </div>
+
+      <div class="loading-row" id="loading-row">
+        <span class="cursor"></span>
+        <span id="loading-text">Retrieving matches…</span>
+      </div>
+
+      <div id="answer-block">
+        <div class="answer-inner">
+          <hr class="divider">
+          <label class="field-label" for="answer">Answer</label>
+          <textarea id="answer" rows="6" readonly></textarea>
+
+          <div class="sources" id="sources-wrap" style="display:none;">
+            <p class="sources-label">Sources</p>
+            <div id="sources-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    const questionEl   = document.getElementById('question');
+    const answerBlock  = document.getElementById('answer-block');
+    const answerEl     = document.getElementById('answer');
+    const sourcesWrap  = document.getElementById('sources-wrap');
+    const sourcesList  = document.getElementById('sources-list');
+    const submitBtn    = document.getElementById('submit-btn');
+    const loadingRow   = document.getElementById('loading-row');
+    const loadingText  = document.getElementById('loading-text');
+    const statusLed    = document.getElementById('status-led');
+    const statusText   = document.getElementById('status-text');
+
+    const steps = {
+      retrieve: document.getElementById('step-retrieve'),
+      augment:  document.getElementById('step-augment'),
+      generate: document.getElementById('step-generate'),
+    };
+
+    function resetSteps(){
+      Object.values(steps).forEach(s => {
+        s.classList.remove('active','done');
+        s.querySelector('.step-node').classList.remove('pulse');
+      });
+    }
+
+    function advancePipeline(){
+      resetSteps();
+      steps.retrieve.classList.add('active');
+      steps.retrieve.querySelector('.step-node').classList.add('pulse');
+      loadingText.textContent = 'Retrieving matches…';
+
+      setTimeout(() => {
+        steps.retrieve.classList.remove('active');
+        steps.retrieve.classList.add('done');
+        steps.retrieve.querySelector('.step-node').classList.remove('pulse');
+        steps.augment.classList.add('active');
+        steps.augment.querySelector('.step-node').classList.add('pulse');
+        loadingText.textContent = 'Building grounded prompt…';
+      }, 500);
+
+      setTimeout(() => {
+        steps.augment.classList.remove('active');
+        steps.augment.classList.add('done');
+        steps.augment.querySelector('.step-node').classList.remove('pulse');
+        steps.generate.classList.add('active');
+        steps.generate.querySelector('.step-node').classList.add('pulse');
+        loadingText.textContent = 'Generating answer…';
+      }, 1000);
+    }
+
+    function finishPipeline(){
+      Object.values(steps).forEach(s => {
+        s.classList.remove('active');
+        s.querySelector('.step-node').classList.remove('pulse');
+        s.classList.add('done');
+      });
+    }
+
+    function swalError(title, text){
+      Swal.fire({
+        icon: 'error',
+        title,
+        text,
+        confirmButtonColor: '#E8B339',
+        background: '#161C28',
+        color: '#E8ECF3',
+        customClass: {
+          popup: 'swal-dark-popup',
+          title: 'swal-dark-title',
+          confirmButton: 'swal-dark-confirm'
+        }
+      });
+    }
+
+    submitBtn.addEventListener('click', async function(){
+      const question = questionEl.value.trim();
+      if(!question){
+        swalError('Nothing to ask', 'Type a question first.');
+        return;
+      }
+
+      answerBlock.classList.remove('show');
+      submitBtn.disabled = true;
+      loadingRow.classList.add('show');
+      statusLed.classList.add('live');
+      statusText.textContent = 'working';
+      advancePipeline();
+
+      const formData = new FormData();
+      formData.append('question', question);
+
+      let response;
+      try{
+        response = await fetch('/get_answer', { method: 'POST', body: formData });
+      }catch(err){
+        loadingRow.classList.remove('show');
+        submitBtn.disabled = false;
+        resetSteps();
+        statusLed.classList.remove('live');
+        statusText.textContent = 'idle';
+        swalError('Couldn\u2019t reach the server', 'Check your connection and try again.');
+        return;
+      }
+
+      loadingRow.classList.remove('show');
+      submitBtn.disabled = false;
+      statusLed.classList.remove('live');
+      statusText.textContent = 'idle';
+
+      if(response.status === 200){
+        finishPipeline();
+        let json;
+        try{
+          json = await response.json();
+        }catch(e){
+          swalError('Unexpected response', 'The server did not return valid data.');
+          return;
+        }
+        answerEl.value = json.answer || '';
+        renderSources(json.relevant_documents);
+        answerBlock.classList.add('show');
+      }else if(response.status === 400){
+        resetSteps();
+        swalError('Oops!', "Sorry, couldn't generate your response now. Please try after some time.");
+      }else{
+        resetSteps();
+        swalError('Oops!', 'There is a ' + response.status + ' error. Please contact admin for support.');
+      }
+    });
+
+    function renderSources(docs){
+      sourcesList.innerHTML = '';
+      if(!docs || (Array.isArray(docs) && docs.length === 0)){
+        sourcesWrap.style.display = 'none';
+        return;
+      }
+      const list = Array.isArray(docs) ? docs : [docs];
+      list.forEach((doc, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'source-chip';
+        chip.style.animationDelay = (i * 0.06) + 's';
+        let text;
+        if(typeof doc === 'string'){
+          text = doc;
+        }else if(doc && typeof doc === 'object'){
+          text = doc.content || doc.text || JSON.stringify(doc);
+        }else{
+          text = String(doc);
+        }
+        chip.innerHTML = '<span class="src-idx">' + String(i+1).padStart(2,'0') + '</span>' + escapeHtml(text);
+        sourcesList.appendChild(chip);
+      });
+      sourcesWrap.style.display = 'block';
+    }
+
+    function escapeHtml(str){
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    questionEl.addEventListener('input', function(){
+      answerBlock.classList.remove('show');
+    });
+  </script>
+</body>
+</html>
